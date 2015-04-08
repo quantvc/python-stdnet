@@ -3,7 +3,7 @@ from random import randint, uniform
 
 from stdnet.utils import test
 
-from examples.models import Node, Role, Profile, Dictionary
+from examples.models import Node, Role, Profile, Dictionary, PrivateKey, PublicKey
 from examples.data import FinanceTest, Position, Instrument, Fund
 
 
@@ -168,3 +168,26 @@ class TestRealtedQuery(FinanceTest):
             self.assertEqual(p.fund, fund)
         
 
+class TestUniquePair(test.TestWrite):
+    models = (PrivateKey, PublicKey)
+
+    def setUp(self):
+        models = self.mapper
+        with models.session().begin() as t:
+            private_key1 = t.add(models.privatekey(name='private1', key='keystring'))
+            private_key2 = t.add(models.privatekey(name='private2', key='keystring'))
+        with models.session().begin() as t:
+            t.add(models.publickey(name='public1', private_key=private_key1, key='keystring'))
+            t.add(models.publickey(name='public2', private_key=private_key2, key='keystring'))
+
+    def test_query(self):
+        public_key = self.query(PublicKey).filter(name='public1').get()
+        self.assertEqual(public_key.private_key.name, 'private1')
+
+        private_key = self.query(PrivateKey).filter(name='private1').get()
+        public_key1 = self.query(PublicKey).filter(private_key=private_key).get()
+        self.assertEqual(public_key, public_key1)
+
+    def test_cascading_delete(self):
+        self.query(PrivateKey).filter(name='private1').delete()
+        self.assertEqual(['public2'], [key.name for key in self.query(PublicKey).all()])

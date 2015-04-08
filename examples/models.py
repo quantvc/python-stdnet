@@ -332,3 +332,16 @@ class AnalyticData(odm.StdModel):
     group = odm.ForeignKey(Group)
     object = odm.ForeignKey(ObjectAnalytics, related_name='analytics')
     data = odm.JSONField()
+
+
+############################################################################
+#   Unique Pair
+class PrivateKey(odm.StdModel):
+    name = odm.SymbolField()
+    key = odm.CharField()
+
+
+class PublicKey(odm.StdModel):
+    name = odm.SymbolField()
+    key = odm.CharField()
+    private_key = odm.ForeignKey(PrivateKey, unique=True)
