@@ -924,7 +924,7 @@ argument.
         self.through = through
         self.relmodel = model
         self.related_name = related_name
-        super(ManyToManyField, self).__init__(model, **kwargs)
+        super(ManyToManyField, self).__init__(**kwargs)
 
     def register_with_model(self, name, model):
         super(ManyToManyField, self).register_with_model(name, model)
