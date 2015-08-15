@@ -7,9 +7,7 @@ from stdnet.utils.encoders import safe_number
 
 
 class RedisColumnTS(redisb.RedisStructure):
-
     '''Redis backend for :class:`ColumnTS`'''
-
     def __contains__(self, timestamp):
         return self.client.execute_script('timeseries_run', (self.id,),
                                           'exists', timestamp)
@@ -41,7 +39,7 @@ class RedisColumnTS(redisb.RedisStructure):
         '''Return a tuple of ordered fields for this :class:`ColumnTS`.'''
         key = self.id + ':fields'
         encoding = self.client.encoding
-        return tuple(sorted((f.decode(encoding)
+        return tuple(sorted((f.decode(encoding) \
                              for f in self.client.smembers(key))))
 
     def info(self, start, end, fields):
@@ -72,15 +70,13 @@ class RedisColumnTS(redisb.RedisStructure):
 
     def irange(self, start=0, end=-1, fields=None, **kwargs):
         fields = fields or ()
-        return self.client.execute_script('timeseries_run', (self.id,),
-                                          'irange',
+        return self.client.execute_script('timeseries_run', (self.id,), 'irange',
                                           start, end, *fields, fields=fields,
                                           return_type='range', **kwargs)
 
     def range(self, start, end, fields=None, **kwargs):
         fields = fields or ()
-        return self.client.execute_script('timeseries_run', (self.id,),
-                                          'range',
+        return self.client.execute_script('timeseries_run', (self.id,), 'range',
                                           start, end, *fields, fields=fields,
                                           return_type='range', **kwargs)
 
@@ -109,8 +105,7 @@ class RedisColumnTS(redisb.RedisStructure):
 
     def stats(self, start, end, fields=None, **kwargs):
         fields = fields or ()
-        return self.client.execute_script('timeseries_run', (self.id,),
-                                          'stats',
+        return self.client.execute_script('timeseries_run', (self.id,), 'stats',
                                           start, end, *fields,
                                           return_type='json', **kwargs)
 
@@ -158,9 +153,9 @@ class RedisColumnTS(redisb.RedisStructure):
             for field in cache.fields:
                 times = []
                 data = []
-                for t, v in cache.fields[field]:
+                for t,v in cache.fields[field]:
                     times.append(t)
-                    data.append('%s' % v)
+                    data.append('%s'%v)
                 fields.append({'times': times,
                                'fields': {field: data}})
             data = {'delete_times': list(cache.deleted_timestamps),
@@ -184,8 +179,8 @@ class RedisColumnTS(redisb.RedisStructure):
     def _multi_stats(self, start, end, command, fields, series, stats):
         all = [(self.id, fields)]
         if series:
-            all.extend(((ts.backend_structure().id, fields)
-                        for ts, fields in series))
+            all.extend(((ts.backend_structure().id, fields)\
+                            for ts,fields in series))
         keys = []
         argv = []
         for s in all:
@@ -196,9 +191,8 @@ class RedisColumnTS(redisb.RedisStructure):
             fields = fields if fields is not None else ()
             argv.append(fields)
         fields = json.dumps(argv)
-        return self.client.execute_script(
-            'timeseries_run', keys, command, start, end, fields,
-            return_type='json')
+        return self.client.execute_script('timeseries_run', keys, command,
+                                          start, end, fields, return_type='json')
 
 
 # Add the redis structure to the struct map in the backend class
@@ -217,3 +211,4 @@ class timeseries_run(redisb.RedisScript):
             return json.loads(response.decode(redis_client.encoding))
         else:
             return response
+

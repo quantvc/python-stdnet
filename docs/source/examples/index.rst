@@ -44,4 +44,3 @@ The collection of tutorials examples is available in the
    serialise
    asynchronous
    local
-   extensions

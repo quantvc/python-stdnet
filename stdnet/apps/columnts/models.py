@@ -1,6 +1,7 @@
 '''Multivariate numeric timeseries interface.'''
 from stdnet import odm, SessionNotAvailable, InvalidTransaction
 from stdnet.utils.skiplist import skiplist
+from stdnet.utils.async import on_result, async
 from stdnet.utils import encoders, iteritems, zip, iterpair
 
 
@@ -9,7 +10,6 @@ __all__ = ['TimeseriesCache', 'ColumnTS', 'ColumnTSField', 'as_dict']
 
 class TimeseriesCache(object):
     cache = None
-
     def __init__(self):
         self.merged_series = None
         self.fields = {}
@@ -19,7 +19,7 @@ class TimeseriesCache(object):
     def add(self, timestamp, field, value):
         if field not in self.fields:
             self.fields[field] = skiplist()
-        self.fields[field].insert(timestamp, value)
+        self.fields[field].insert(timestamp,value)
 
     def clear(self):
         self.merged_series = None
@@ -36,12 +36,11 @@ def as_dict(times, fields):
         names.append(name)
         lists.append(value)
     for dt, data in zip(times, zip(*lists)):
-        d[dt] = dict(zip(names, data))
+        d[dt] = dict(zip(names,data))
     return d
-
+        
 
 class ColumnTS(odm.TS):
-
     '''A specialised :class:`stdnet.odm.TS` structure for numeric
 multivariate timeseries.'''
     default_multi_stats = ['covariance']
@@ -52,15 +51,15 @@ multivariate timeseries.'''
 
     def front(self, *fields):
         '''Return the front pair of the structure'''
-        v, f = tuple(self.irange(0, 0, fields=fields))
+        v,f = tuple(self.irange(0, 0, fields=fields))
         if v:
-            return (v[0], dict(((field, f[field][0]) for field in f)))
+            return (v[0],dict(((field, f[field][0]) for field in f)))
 
     def back(self, *fields):
         '''Return the back pair of the structure'''
-        v, f = tuple(self.irange(-1, -1, fields=fields))
+        v,f = tuple(self.irange(-1, -1, fields=fields))
         if v:
-            return (v[0], dict(((field, f[field][0]) for field in f)))
+            return (v[0],dict(((field, f[field][0]) for field in f)))
 
     def info(self, start=None, end=None, fields=None):
         '''Provide data information for this :class:`ColumnTS`. If no
@@ -68,9 +67,8 @@ parameters are specified it returns the number of data points for each
 fields, as well as the start and end date.'''
         start = self.pickler.dumps(start) if start else None
         end = self.pickler.dumps(end) if end else None
-        backend = self.read_backend
-        return backend.execute(
-            backend.structure(self).info(start, end, fields), self._stats)
+        return on_result(self.backend_structure().info(start, end, fields),
+                         self._stats)
 
     def fields(self):
         '''Tuple of ordered fields for this :class:`ColumnTS`.'''
@@ -95,10 +93,9 @@ fields, as well as the start and end date.'''
         return self
 
     def evaluate(self, script, *series, **params):
-        backend = self.backend
-        return backend.execute(
-            backend.structure(self).run_script('evaluate', series, script,
-                                               **params), self._evaluate)
+        res = self.backend_structure().run_script('evaluate', series,
+                                                  script, **params)
+        return on_result(res, self._evaluate)
 
     def istats(self, start=0, end=-1, fields=None):
         '''Perform a multivariate statistic calculation of this
@@ -109,13 +106,12 @@ fields, as well as the start and end date.'''
 :param fields: Optional subset of :meth:`fields` to perform analysis on.
     If not provided all fields are included in the analysis.
 '''
-        backend = self.read_backend
-        return backend.execute(
-            backend.structure(self).istats(start, end, fields), self._stats)
+        res = self.backend_structure().istats(start, end, fields)
+        return on_result(res, self._stats)
 
     def stats(self, start, end, fields=None):
         '''Perform a multivariate statistic calculation of this
-:class:`ColumnTS` from a *start*  date/datetime to an
+:class:`ColumnTS` from a *start*  date/datetime to an 
 *end* date/datetime.
 
 :param start: Start date for analysis.
@@ -125,9 +121,8 @@ fields, as well as the start and end date.'''
 '''
         start = self.pickler.dumps(start)
         end = self.pickler.dumps(end)
-        backend = self.read_backend
-        return backend.execute(
-            backend.structure(self).stats(start, end, fields), self._stats)
+        res = self.backend_structure().stats(start, end, fields)
+        return on_result(res, self._stats)
 
     def imulti_stats(self, start=0, end=-1, series=None, fields=None,
                      stats=None):
@@ -144,12 +139,11 @@ to *end*.
     Default: ['covariance']
 '''
         stats = stats or self.default_multi_stats
-        backend = self.read_backend
-        return backend.execute(
-            backend.structure(self).imulti_stats(start, end, fields, series,
-                                                 stats), self._stats)
+        res = self.backend_structure().imulti_stats(start, end, fields, series,
+                                                    stats)
+        return on_result(res, self._stats)
 
-    def multi_stats(self, start, end, series=None, fields=None, stats=None):
+    def multi_stats(self, start, end,  series=None, fields=None, stats=None):
         '''Perform cross multivariate statistics calculation of
 this :class:`ColumnTS` and other *series*.
 
@@ -164,10 +158,9 @@ this :class:`ColumnTS` and other *series*.
         stats = stats or self.default_multi_stats
         start = self.pickler.dumps(start)
         end = self.pickler.dumps(end)
-        backend = self.read_backend
-        return backend.execute(
-            backend.structure(self).multi_stats(start, end, fields, series,
-                                                stats), self._stats)
+        res = self.backend_structure().multi_stats(
+                        start, end, fields, series, stats)
+        return on_result(res, self._stats)
 
     def merge(self, *series, **kwargs):
         '''Merge this :class:`ColumnTS` with several other *series*.
@@ -197,10 +190,8 @@ in the backend server.'''
             target = router.register(cls(), backend)
             router.session().add(target)
             target._merge(*series, **kwargs)
-            backend = target.backend
-            return backend.execute(
-                backend.structure(target).irange_and_delete(),
-                target.load_data)
+            res = target.backend_structure().irange_and_delete()
+            return on_result(res, target.load_data)
 
     # INTERNALS
     @classmethod
@@ -228,7 +219,7 @@ in the backend server.'''
     def _merge(self, *series, **kwargs):
         fields = kwargs.get('fields') or ()
         self.backend_structure().merge(series, fields)
-
+        
     def load_data(self, result):
         #Overwrite :meth:`stdnet.odm.PairMixin.load_data` method
         loads = self.pickler.loads
@@ -269,9 +260,8 @@ in the backend server.'''
 
 
 class ColumnTSField(odm.StructureField):
-
     '''A multivariate timeseries field.'''
     type = 'columnts'
-
     def structure_class(self):
         return ColumnTS
+
